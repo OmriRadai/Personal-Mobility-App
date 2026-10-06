@@ -28,25 +28,42 @@
           x-text="mode === 'active' ? `${currentIndex + 1}/${activeList.length}` : 'Ready'"></span>
   </header>
 
-  <!-- View 1: Routine Selector -->
+  <!-- View 1: Routine Selector & Category Switcher -->
   <main x-show="mode === 'selector'" class="p-4 max-w-md mx-auto space-y-5 pb-12">
-    <div class="space-y-1.5 pt-2">
-      <div class="inline-block px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[11px] font-bold tracking-wider uppercase text-amber-400">
-        Personal Protocol
-      </div>
-      <h2 class="text-2xl font-black text-white tracking-tight">Mobility Routines</h2>
-      <p class="text-xs text-slate-400 leading-relaxed">Choose an active focus session or continue your split cycle.</p>
+    <!-- Category Navigation Pill Bar -->
+    <div class="p-1 rounded-2xl bg-slate-800/80 border border-slate-700/80 grid grid-cols-2 gap-1 shadow-inner">
+      <button @click="activeTab = 'mobility'"
+              class="py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200"
+              :class="activeTab === 'mobility' ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'">
+        Mobility
+      </button>
+      <button @click="activeTab = 'calisthenics'"
+              class="py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200"
+              :class="activeTab === 'calisthenics' ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'">
+        Skills & Strength
+      </button>
     </div>
 
+    <!-- Header Description -->
+    <div class="space-y-1.5 pt-1">
+      <div class="inline-block px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[11px] font-bold tracking-wider uppercase text-amber-400"
+           x-text="activeTab === 'mobility' ? 'Joint Health & Splits' : 'Minimal Effective Dose (MED)'"></div>
+      <h2 class="text-2xl font-black text-white tracking-tight"
+          x-text="activeTab === 'mobility' ? 'Daily Mobility Routines' : 'Calisthenics Skill Protocols'"></h2>
+      <p class="text-xs text-slate-400 leading-relaxed"
+         x-text="activeTab === 'mobility' ? 'Select your daily split or regional flow.' : 'Targeting OAC, Planche, HSPU, and Muscle-Up foundations in 2–3 high-intensity sets.'"></p>
+    </div>
+
+    <!-- Routine Cards -->
     <div class="space-y-3">
-      <template x-for="(routine, key) in routines" :key="key">
+      <template x-for="(routine, key) in filteredRoutines" :key="key">
         <div class="p-4 rounded-2xl bg-gradient-to-br from-slate-800/95 to-slate-800/60 border border-slate-700/80 hover:border-amber-500/40 transition-all duration-200 flex items-center justify-between shadow-sm hover:shadow-md group">
           <div class="space-y-1.5 pr-3">
             <h3 class="font-bold text-slate-100 text-sm leading-snug group-hover:text-amber-300 transition-colors" x-text="routine.name"></h3>
             <div class="flex items-center gap-2 text-xs text-slate-400">
               <span class="inline-flex items-center gap-1 text-teal-300/90 font-medium">
                 <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
-                <span x-text="`${routine.exercises.length} moves`"></span>
+                <span x-text="`${routine.exercises.length} items`"></span>
               </span>
               <span>•</span>
               <span x-text="`~${routine.duration} mins`"></span>
@@ -167,6 +184,7 @@
     function mobilityApp() {
       return {
         mode: 'selector',
+        activeTab: 'mobility', // <--- ADD THIS LINE
         headerTitle: 'Mobility Flow',
         currentIndex: 0,
         activeList: [],
@@ -177,6 +195,196 @@
         wakeLock: null,
 
         routines: {
+
+          // --- CALISTHENICS & SKILLS (MED PROTOCOL) ---
+          skills_med_primary: {
+            type: 'calisthenics',
+            name: "Big 4 Calisthenics: Primary MED Session",
+            duration: 40,
+            exercises: [
+              {
+                branded_name: "Wrist & Scapular Activation Flow",
+                biomechanical_name: "Radiocarpal Dynamic Mobilization & Scapular Protractions",
+                category: "Prep Circuit",
+                sets: 2, reps: 10, reps_unit: "reps per direction", hold_seconds: 0, rest_seconds: 30,
+                starting_position: "All-fours quadruped with straight elbows.",
+                movement_cues: [
+                  "Perform 10 forward wrist rocks, 10 reverse palm lifts, and 10 scapular push-ups",
+                  "Keep elbows strictly locked to isolate glenohumeral and serratus mechanics",
+                  "Prepare forearms and connective tissue for heavy closed-chain loading"
+                ],
+                common_faults: ["Bending elbows", "Rushing through wrist extension"]
+              },
+              {
+                branded_name: "Chest-to-Wall Handstand Alignment",
+                biomechanical_name: "Static Inverted Glenohumeral Elevation Hold",
+                category: "Skill Primer",
+                sets: 3, reps: 1, reps_unit: "hold", hold_seconds: 30, rest_seconds: 60,
+                starting_position: "Chest-to-wall handstand, hands 10–15 cm from wall.",
+                movement_cues: [
+                  "Actively shrug shoulders toward ears (scapular elevation)",
+                  "Tuck pelvis into posterior tilt, engaging glutes and abdominals",
+                  "Gaze softly between thumbs without arching cervical spine"
+                ],
+                common_faults: ["Banana back (lumbar lordosis)", "Depressing shoulders away from ears"]
+              },
+              {
+                branded_name: "Pike HSPU / Wall Handstand Push-Up",
+                biomechanical_name: "Overhead Inverted Pressing in Scapular Plane",
+                category: "Pair A1 (Vertical Push)",
+                sets: 3, reps: 3, reps_unit: "reps (RPE 9)", hold_seconds: 0, rest_seconds: 90,
+                tempo: "3-1-X-0 (3s eccentric descent)",
+                starting_position: "Hands shoulder-width, feet elevated on high box or wall.",
+                movement_cues: [
+                  "Lower head forward to form a clean tripod shape with hands",
+                  "Keep elbows tucked at a 45-degree angle, not flared sideways",
+                  "Drive aggressively back and through, finishing with shoulders shrugged to ears"
+                ],
+                common_faults: ["Flaring elbows out to 90 degrees", "Pressing straight up instead of pushing back through the window"]
+              },
+              {
+                branded_name: "Archer Negative OAC / Assisted OAC",
+                biomechanical_name: "Unilateral Eccentric Glenohumeral & Elbow Adduction",
+                category: "Pair A2 (Vertical Pull)",
+                sets: 3, reps: 2, reps_unit: "eccentrics per arm", hold_seconds: 2, rest_seconds: 90,
+                tempo: "5s controlled eccentric + 2s pause at 90°",
+                starting_position: "Pull-up bar with chin-up grip on working arm; assisting arm fingertips on bar/strap.",
+                movement_cues: [
+                  "Explode or jump to top chin-over-bar position",
+                  "Lower over a strict 5-second countdown",
+                  "Pause for 2 seconds at the sticking point (90 degrees elbow flexion) before full stretch"
+                ],
+                common_faults: ["Dropping fast through the bottom half", "Letting the working shoulder roll anteriorly forward"]
+              },
+              {
+                branded_name: "Planche Lean Push-Up",
+                biomechanical_name: "Anterior Deltoid & Serratus Leaned Horizontal Press",
+                category: "Pair B1 (Horizontal Push)",
+                sets: 3, reps: 5, reps_unit: "reps", hold_seconds: 3, rest_seconds: 90,
+                tempo: "2s pause at peak forward lean",
+                starting_position: "Push-up position with hands turned slightly outward (45°), leaning aggressively forward.",
+                movement_cues: [
+                  "Lean forward until hands are at waist/hip level with locked protraction",
+                  "Descend into push-up keeping shoulders well forward of wrists",
+                  "Push up to lockout and protract (push ceiling away), holding 2-3 seconds"
+                ],
+                common_faults: ["Losing protraction at top lockout", "Retracting hips backward during press"]
+              },
+              {
+                branded_name: "Explosive Chest-to-Bar / False-Grip Pull",
+                biomechanical_name: "High Dynamic Pull-Up with Muscle-Up Transition Mechanics",
+                category: "Pair B2 (Horizontal/Vertical Pull)",
+                sets: 3, reps: 4, reps_unit: "explosive reps", hold_seconds: 0, rest_seconds: 90,
+                starting_position: "Overhand or false grip on straight bar or rings.",
+                movement_cues: [
+                  "Drive elbows straight back and down with maximum violent acceleration",
+                  "Pull bar down to sternum/lower ribs, maintaining hollow body tension",
+                  "Focus on concentric bar speed to build muscle-up turnover power"
+                ],
+                common_faults: ["Kicking knees up (kipping)", "Pulling chin only to bar level"]
+              },
+              {
+                branded_name: "Hanging Leg Raise to Bar / L-Sit",
+                biomechanical_name: "Strict Active Anterior Core Compression",
+                category: "Core & Connective Health",
+                sets: 2, reps: 8, reps_unit: "strict reps", hold_seconds: 15, rest_seconds: 60,
+                starting_position: "Dead hang on bar or seated support on dip bars.",
+                movement_cues: [
+                  "Engage lats, keep legs locked straight, and flex hips until toes touch the bar",
+                  "Control the eccentric lowering phase with zero backward swing",
+                  "Hold final rep or transition to 15s L-Sit hold"
+                ],
+                common_faults: ["Using swing momentum", "Bending knees"]
+              },
+              {
+                branded_name: "Band / Ring Face Pulls",
+                biomechanical_name: "Scapular Retraction & Glenohumeral External Rotation",
+                category: "Rotator Cuff Prehab",
+                sets: 2, reps: 12, reps_unit: "reps", hold_seconds: 1, rest_seconds: 60,
+                starting_position: "Standing facing resistance band anchored at eye height.",
+                movement_cues: [
+                  "Pull band toward bridge of nose, driving elbows high and wide",
+                  "Rotate forearms back into double-biceps position",
+                  "Squeeze posterior deltoids and external rotators for 1 second"
+                ],
+                common_faults: ["Arching lumbar spine", "Leading with hands instead of elbows"]
+              }
+            ]
+          },
+          skills_med_secondary: {
+            type: 'calisthenics',
+            name: "Big 4 Calisthenics: Volume & Transition Day",
+            duration: 35,
+            exercises: [
+              {
+                branded_name: "Freestanding Handstand Practice",
+                biomechanical_name: "Proprioceptive Balance & Micro-Adjustments",
+                category: "Skill Practice",
+                sets: 5, reps: 1, reps_unit: "attempts", hold_seconds: 20, rest_seconds: 45,
+                starting_position: "Kick-up to freestanding handstand on floor or parallettes.",
+                movement_cues: [
+                  "Push tall through finger pads to control overthrow",
+                  "Squeeze inner thighs together with pointed toes",
+                  "Accumulate balance time with minimal fatigue"
+                ],
+                common_faults: ["Relaxing shoulders", "Kicking up too aggressively"]
+              },
+              {
+                branded_name: "Assisted One-Arm Chin-Up",
+                biomechanical_name: "Unilateral Concentric-Focused Vertical Pull",
+                category: "Pair A1 (Pull)",
+                sets: 3, reps: 3, reps_unit: "reps per arm", hold_seconds: 0, rest_seconds: 90,
+                starting_position: "One arm chinning, opposite hand using light resistance band or 1-finger assist.",
+                movement_cues: [
+                  "Drive working elbow down into your hip",
+                  "Minimize assistance from secondary hand to bare minimum",
+                  "Clear chin easily over bar with full control"
+                ],
+                common_faults: ["Over-pulling with assisting arm", "Short-changing bottom dead hang"]
+              },
+              {
+                branded_name: "Deep Ring Dips / Pseudo Planche Push-Up",
+                biomechanical_name: "Full-Range Shoulder Extension Pressing",
+                category: "Pair A2 (Push)",
+                sets: 3, reps: 6, reps_unit: "reps", hold_seconds: 0, rest_seconds: 90,
+                tempo: "2-0-1-1 (Turn rings out at top)",
+                starting_position: "Top support on rings or parallel bars.",
+                movement_cues: [
+                  "Lower until biceps touch rings (deep shoulder extension)",
+                  "Drive up forcefully to straight arm lockout",
+                  "Turn ring handles outward (RTO) at top for maximal bicep/rotator stabilization"
+                ],
+                common_faults: ["Cutting depth short", "Shoulders rounding forward excessively"]
+              },
+              {
+                branded_name: "Slow Muscle-Up Negative Transition",
+                biomechanical_name: "Eccentric Muscle-Up Turnover Mechanics",
+                category: "Pair B1 (Skill)",
+                sets: 3, reps: 2, reps_unit: "eccentrics", hold_seconds: 2, rest_seconds: 90,
+                starting_position: "Top of dip support over bar or rings.",
+                movement_cues: [
+                  "Lower to bottom dip and lean chest over bar",
+                  "Maintain false grip as you slowly slide sternum past bar into hang",
+                  "Spend 3–4 seconds specifically in the transition zone"
+                ],
+                common_faults: ["Losing false grip before reaching the hang", "Dropping through the turnaround"]
+              },
+              {
+                branded_name: "Tuck Planche Hold / Lean Hold",
+                biomechanical_name: "Straight-Arm Scapular Protraction Isometric",
+                category: "Pair B2 (Static)",
+                sets: 3, reps: 1, reps_unit: "hold", hold_seconds: 12, rest_seconds: 90,
+                starting_position: "Parallettes or floor, shoulders pinned forward in extreme protraction.",
+                movement_cues: [
+                  "Depress and protract shoulder blades maximally (hollow chest)",
+                  "Lock elbows completely straight (biceps facing forward)",
+                  "Tuck knees to chest and elevate hips to shoulder height"
+                ],
+                common_faults: ["Bending elbows to bear weight", "Winged scapulae"]
+              }
+            ]
+          },
+
           // --- FRONT SPLITS ---
           fs_a: {
             name: "Front Splits - Workout A",
@@ -1266,6 +1474,18 @@
           }
         },
 
+        get filteredRoutines() {
+          const list = {};
+          for (const [k, v] of Object.entries(this.routines)) {
+            // Defaults all your existing routines to 'mobility' unless specified as 'calisthenics'
+            const rType = v.type || 'mobility';
+            if (rType === this.activeTab) {
+              list[k] = v;
+            }
+          }
+          return list;
+        },
+
         get currentEx() {
           return this.activeList[this.currentIndex] || {};
         },
@@ -1295,7 +1515,9 @@
 
         setupExerciseTimer() {
           this.resetTimer();
-          this.targetTimer = this.currentEx.hold_seconds || 30;
+          this.targetTimer = this.currentEx.hold_seconds 
+            ? this.currentEx.hold_seconds 
+            : (this.currentEx.rest_seconds || 0);
           this.timerVal = this.targetTimer;
         },
 
