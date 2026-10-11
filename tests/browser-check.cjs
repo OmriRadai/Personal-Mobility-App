@@ -43,12 +43,17 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
     assert.ok(await evaluate("parseFloat(getComputedStyle(document.querySelector('.countdown')).fontSize)>=76"));
     for(const width of [320,390]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'active overflow '+width);}
     fs.mkdirSync('.test-results',{recursive:true});fs.writeFileSync('.test-results/mobile.png',Buffer.from((await cmd('Page.captureScreenshot',{format:'png'})).data,'base64'));
+    assert.equal(await evaluate('Alpine.$data(document.body).timer.running'),true);
+    assert.equal(await evaluate('Alpine.$data(document.body).phase.kind'),'preparation');
+    await evaluate("Alpine.$data(document.body).timerPause();[...document.querySelectorAll('button')].find(b=>b.textContent==='Reset timer').click()");
+    assert.equal(await evaluate('Alpine.$data(document.body).timer.remaining'),5);assert.equal(await evaluate('Alpine.$data(document.body).timer.running'),false);
     await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Start / resume')).focus()");
     assert.equal(await evaluate("document.activeElement.textContent"),'Start / resume');
     await cmd('Input.dispatchKeyEvent',{type:'rawKeyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,nativeVirtualKeyCode:13});await cmd('Input.dispatchKeyEvent',{type:'char',text:'\r',unmodifiedText:'\r',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,nativeVirtualKeyCode:13});await delay(100);
     assert.equal(await evaluate('Alpine.$data(document.body).timer.running'),true);
     assert.equal(await evaluate('Alpine.$data(document.body).result.reps'),'');
-    await evaluate("const a=Alpine.$data(document.body);WorkoutTiming.tick(a.timer,a.timer.deadline+1000);a.nextSet()");assert.equal(await evaluate('Alpine.$data(document.body).currentSetIndex'),1);
+    await evaluate("const a=Alpine.$data(document.body);a.timer.index=a.timer.phases.length-1;a.timer.deadline=Date.now()-1;a.tickTimer()");assert.equal(await evaluate('Alpine.$data(document.body).currentSetIndex'),1);
+    assert.equal(await evaluate('Alpine.$data(document.body).phase.kind'),'preparation');assert.equal(await evaluate('Alpine.$data(document.body).timer.running'),true);
     await evaluate("Alpine.$data(document.body).timerStart();Alpine.$data(document.body).timerPause();Alpine.$data(document.body).save();location.reload()");
     await delay(200);await waitFor('typeof Alpine!=="undefined" && !!Alpine.$data(document.body).data.active');
     await evaluate('Alpine.$data(document.body).resumeSession()');assert.equal(await evaluate('Alpine.$data(document.body).currentSetIndex'),1);

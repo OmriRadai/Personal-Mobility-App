@@ -55,7 +55,7 @@ function mobilityApp() {
     },
     initApp(){
       const state=WorkoutStorage.read();this.data=state.data;this.storageError=state.error;this.lighter=this.lighterDue;
-      this.clockHandle=setInterval(()=>{WorkoutTiming.tick(this.timer);if(['active','review'].includes(this.mode) && Date.now()-this.lastTimerSave>=1000){this.save();this.lastTimerSave=Date.now();}},100);
+      this.clockHandle=setInterval(()=>{this.tickTimer();if(['active','review'].includes(this.mode) && Date.now()-this.lastTimerSave>=1000){this.save();this.lastTimerSave=Date.now();}},100);
       document.addEventListener('visibilitychange',()=>{if(this.mode==='active' && document.visibilityState==='visible'){WorkoutTiming.tick(this.timer);this.requestWakeLock();}});
       window.addEventListener('pagehide',()=>this.save());
     },
@@ -71,11 +71,18 @@ function mobilityApp() {
       this.session={id:crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random(),key,name:r.name,
         category:r.type || 'mobility',date:WorkoutStorage.date(this.data.timezone),started:new Date().toISOString(),status:'active',lighter:light,
         queue:this.activeWorkoutQueue,results:this.activeWorkoutQueue.map((e,i)=>this.blankResult(e,i)),notes:'',exerciseNotes:{},stage:'workout',guideVersion:2,index:0};
-      this.mode='active';this.prepareTimer();this.save();this.requestWakeLock();this.scrollTop();
+      this.mode='active';this.prepareTimer(true);this.save();this.requestWakeLock();this.scrollTop();
     },
     blankResult(e={},i=-1){return {name:e.branded_name || 'Custom exercise',variation:e.branded_name || '',exerciseId:e.id || '',queueIndex:i,
       goal:e.goal || null,level:e.level ?? null,set:e.currentSetNumber || 1,reps:'',repsOther:'',hold:'',holdOther:'',load:'',assistance:'',effort:'',notes:'',clean:false,tempo:false,completed:false};},
-    prepareTimer(){this.targetReps=this.currentStep.reps;this.rangeSeconds=2;WorkoutTiming.load(this.timer,WorkoutTiming.guidedPhases(this.currentStep));},
+    prepareTimer(autoStart=false,now=Date.now()){
+      this.targetReps=this.currentStep.reps;this.rangeSeconds=2;
+      const phases=WorkoutTiming.guidedPhases(this.currentStep);
+      WorkoutTiming.load(this.timer,[{label:'Get ready',seconds:5,target:phases[0]?.target || this.prescription,movement:phases[0]?.movement || this.currentStep.branded_name,kind:'preparation',side:phases[0]?.side || '',rep:0},...phases]);
+      if(autoStart)WorkoutTiming.start(this.timer,now);
+    },
+    tickTimer(now=Date.now()){WorkoutTiming.tick(this.timer,now);if(this.mode==='active' && this.timer.done)this.nextSet(now);},
+    resetTimer(){if(this.mode!=='active')return;const running=this.timer.running;this.prepareTimer(running);this.save();},
     rebuildTimer(){this.targetReps=Math.min(1000,Math.max(1,Math.floor(Number(this.targetReps)||1)));WorkoutTiming.load(this.timer,WorkoutTiming.phases(this.currentStep,this.targetReps,this.rangeSeconds),this.annotation.descent || 0);this.save();},
     timerStart(){WorkoutTiming.start(this.timer);this.save();},
     timerPause(){WorkoutTiming.pause(this.timer);this.save();},
@@ -84,12 +91,12 @@ function mobilityApp() {
       if(this.phase.label.startsWith('Lower toward'))this.timer.descentRemaining=this.annotation.descent || 0;
       if(this.phase.label.startsWith('Complete lower'))this.timer.descentRemaining=this.timer.descentPhaseStart;this.timer.descentDeadline=0;WorkoutTiming.start(this.timer);this.save();},
     finishEarly(){const i=this.timer.phases.findIndex(p=>p.kind==='rest');this.timer.running=false;this.timer.descentDeadline=0;if(i>=0){this.timer.index=i;this.timer.remaining=this.phase.seconds;WorkoutTiming.start(this.timer);}else{this.timer.done=true;this.timer.remaining=null;}this.save();},
-    nextSet(){
+    nextSet(now=Date.now()){
       if(!this.timer.done)return;
-      this.result.visited=true;this.advance();
+      this.result.visited=true;this.advance(now);
     },
     skipSet(){this.result.completed=false;this.result.notes=this.result.notes || 'Skipped';this.advance();},
-    advance(){this.message='';WorkoutTiming.pause(this.timer);if(this.currentSetIndex<this.activeWorkoutQueue.length-1){this.currentSetIndex++;this.prepareTimer();this.save();this.scrollTop();}else this.openReview();},
+    advance(now=Date.now()){this.message='';WorkoutTiming.pause(this.timer);if(this.currentSetIndex<this.activeWorkoutQueue.length-1){this.currentSetIndex++;this.prepareTimer(true,now);this.save();this.scrollTop();}else this.openReview();},
     openReview(){this.timerPause();this.session.stage='review';this.session.exerciseNotes=this.session.exerciseNotes || {};this.mode='review';this.save();this.releaseWakeLock();this.scrollTop();},
     saveReview(){
       if(!this.session.results.every(r=>this.validResult(r))){this.message='Use nonnegative numbers for your results.';return;}

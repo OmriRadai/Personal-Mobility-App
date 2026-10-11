@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><title>Mobility Flow · Big 4 & Logbook</title>
-<link rel="stylesheet" href="app.css?v=guided-workout-2">
+<link rel="stylesheet" href="app.css?v=autoplay-workout-3">
 <script defer src="js/mobility-data.js"></script><script defer src="js/training-data.js?v=guided-workout-2"></script>
-<script defer src="js/timing.js?v=guided-workout-2"></script><script defer src="js/storage.js?v=guided-workout-2"></script><script defer src="js/app.js?v=guided-workout-2"></script>
+<script defer src="js/timing.js?v=guided-workout-2"></script><script defer src="js/storage.js?v=guided-workout-2"></script><script defer src="js/app.js?v=autoplay-workout-3"></script>
 <script defer src="js/alpine.min.js"></script>
 </head>
 <body x-data="mobilityApp()" x-init="initApp()">
@@ -48,7 +48,7 @@
 <div class="row timer-controls">
 <button class="primary" @click="timerStart()" :disabled="timer.running || timer.done">Start / resume</button>
 <button @click="timerPause()" :disabled="!timer.running">Pause</button>
-<button class="primary" x-show="timer.done" @click="nextSet()" x-text="currentSetIndex===activeWorkoutQueue.length-1?'Record workout':'Next set'"></button>
+<button @click="resetTimer()">Reset timer</button>
 </div>
 </section></template>
 <template x-if="mode==='review' && session"><section class="workout-review">

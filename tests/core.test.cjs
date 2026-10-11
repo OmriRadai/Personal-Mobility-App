@@ -105,7 +105,7 @@ test('starting any new routine replaces unfinished work without saving it to his
     if(paused)a.exitWorkout();
     a.startRoutine(newKey);
     assert.equal(a.mode,'active');assert.equal(a.session.key,newKey);assert.notEqual(a.session.id,oldId);
-    assert.equal(a.currentSetIndex,0);assert.equal(a.result.reps,'');assert.equal(a.timer.running,false);assert.equal(a.message,'');
+    assert.equal(a.currentSetIndex,0);assert.equal(a.result.reps,'');assert.equal(a.timer.running,true);assert.equal(a.phase.kind,'preparation');assert.equal(a.timer.remaining,5);assert.equal(a.message,'');
     assert.deepEqual(plain(a.data.sessions),history);
     const reloaded=c.mobilityApp();reloaded.initApp();assert.equal(reloaded.data.active.id,a.session.id);
   }
@@ -169,4 +169,24 @@ test('legacy unfinished exercises are retained and rebuilt into finite guides on
   const c=context(),a=c.mobilityApp();a.initApp();a.startRoutine('fs_a');const id=a.session.id;
   delete a.session.guideVersion;a.session.timer={phases:[{label:'Manual',seconds:null}],index:0,running:false,remaining:null,deadline:0,done:false};a.save();
   const b=c.mobilityApp();b.initApp();b.resumeSession();assert.equal(b.session.id,id);assert.equal(b.session.guideVersion,2);assert.ok(b.timer.phases.every(p=>Number.isFinite(p.seconds)));
+});
+test('first set starts automatically with five seconds of preparation; pausing freezes the countdown',()=>{
+  const c=context(),a=c.mobilityApp();a.startRoutine('fs_a');const start=a.timer.deadline-5000;
+  assert.equal(a.timer.running,true);assert.equal(a.phase.kind,'preparation');a.tickTimer(start+2000);assert.equal(a.timer.remaining,3);
+  c.WorkoutTiming.pause(a.timer,start+2000);a.tickTimer(start+20000);assert.equal(a.timer.remaining,3);assert.equal(a.currentSetIndex,0);
+  c.WorkoutTiming.start(a.timer,start+20000);a.tickTimer(start+23000);assert.equal(a.phase.kind,'work');assert.equal(a.timer.running,true);
+});
+test('each completed set advances automatically into a fresh five-second countdown, including after suspension',()=>{
+  const c=context(),a=c.mobilityApp();a.startRoutine('skills_med_primary');const now=a.timer.deadline+100000;
+  a.tickTimer(now);assert.equal(a.currentSetIndex,1);assert.equal(a.phase.kind,'preparation');assert.equal(a.timer.remaining,5);assert.equal(a.timer.deadline,now+5000);
+  assert.equal(a.session.results[0].visited,true);assert.equal(a.session.results[0].reps,'');
+  while(a.mode==='active')a.tickTimer(a.timer.deadline+100000);
+  assert.equal(a.mode,'review');assert.equal(a.timer.running,false);assert.equal(a.data.sessions.length,0);
+});
+test('reset restarts the whole current set with preparation and retains paused/running state and results',()=>{
+  const c=context(),a=c.mobilityApp();a.startRoutine('skills_med_primary');a.result.notes='Keep this';
+  a.timer.index=1;a.timer.remaining=7;a.resetTimer();assert.equal(a.timer.index,0);assert.equal(a.timer.remaining,5);assert.equal(a.timer.running,true);
+  a.timerPause();a.timer.index=1;a.timer.remaining=4;a.resetTimer();assert.equal(a.timer.index,0);assert.equal(a.timer.remaining,5);assert.equal(a.timer.running,false);
+  assert.equal(a.currentSetIndex,0);assert.equal(a.result.notes,'Keep this');a.timerStart();assert.equal(a.timer.running,true);
+  a.exitWorkout();const b=c.mobilityApp();b.initApp();b.resumeSession();assert.equal(b.phase.kind,'preparation');assert.equal(b.timer.running,false);
 });
