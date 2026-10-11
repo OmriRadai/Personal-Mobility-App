@@ -29,7 +29,7 @@ Petar's tempo notation is **lift, top pause, lower, bottom pause**, not the more
 
 ## Logbook and backups
 
-Actual reps, holds by side, load, assistance, reps in reserve, form, tempo and notes are stored per set. Record results to advance, or skip the set. Sessions with skipped sets finish as partial. Pausing retains an unfinished session; save partial or abandoned sessions explicitly. Manual entries and additional sets can be added and history edited.
+Actual reps, holds by side, load, assistance, reps in reserve, form, tempo and notes are stored per set. Record results to advance, or skip the set. Sessions with skipped sets finish as partial. Pausing retains an unfinished session. Save partial to keep its results; Delete session discards it without a logbook entry. Starting any new workout automatically deletes the unfinished session, including across categories, without confirmation. Existing logbook history is preserved. Manual entries and additional sets can be added and history edited.
 
 Storage is local to the browser and origin (opening by file and by HTTP may have separate histories). Dates default to Asia/Jerusalem. Export JSON regularly. Import into an empty logbook restores levels and an unfinished session; otherwise it merges history by ID, retaining local duplicates, levels and the local unfinished session. Invalid imports do not overwrite data. Storage failure leaves work in memory and displays an export reminder.
 

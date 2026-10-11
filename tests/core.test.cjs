@@ -85,3 +85,26 @@ test('backup import restores an empty device and rejects invalid data without ov
   assert.equal(b.data.levels.hspu,1);assert.equal(b.data.active.id,backup.active.id);assert.equal(incoming.target.value,'');
   const bad={target:{files:[{size:100,text:async()=>'{"version":99}'}],value:'selected'}};await b.importData(bad);assert.match(b.message,/Import failed/);assert.equal(b.data.active.id,backup.active.id);
 });
+test('delete session discards active or paused work and unlocks both categories without changing history',()=>{
+  const c=context(),a=c.mobilityApp();a.initApp();
+  a.startRoutine('fs_a');a.result.reps=10;a.finishSession('partial');
+  const saved=a.data.sessions[0].id;
+  a.startRoutine('fs_a');a.timerStart();a.deleteSession();
+  assert.equal(a.data.active,null);assert.equal(a.timer.running,false);assert.equal(a.activeWorkoutQueue.length,0);
+  assert.equal(a.data.sessions.length,1);assert.equal(a.data.sessions[0].id,saved);
+  a.startRoutine('fs_a');a.exitWorkout();a.deleteSession();a.startRoutine('skills_med_primary');assert.equal(a.mode,'active');
+  a.deleteSession();const b=c.mobilityApp();b.initApp();assert.equal(b.data.active,null);assert.equal(b.data.sessions.length,1);
+});
+test('starting any new routine replaces unfinished work without saving it to history',()=>{
+  const c=context(),a=c.mobilityApp();a.initApp();
+  a.startRoutine('fs_a');a.result.reps=10;a.finishSession('partial');const history=plain(a.data.sessions);
+  for(const [oldKey,newKey,paused] of [['fs_a','skills_med_primary',true],['skills_med_primary','fs_a',false],['skills_med_primary','skills_med_primary',true]]){
+    a.startRoutine(oldKey);a.result.reps=7;a.timerStart();const oldId=a.session.id;
+    if(paused)a.exitWorkout();
+    a.startRoutine(newKey);
+    assert.equal(a.mode,'active');assert.equal(a.session.key,newKey);assert.notEqual(a.session.id,oldId);
+    assert.equal(a.currentSetIndex,0);assert.equal(a.result.reps,'');assert.equal(a.timer.running,false);assert.equal(a.message,'');
+    assert.deepEqual(plain(a.data.sessions),history);
+    const reloaded=c.mobilityApp();reloaded.initApp();assert.equal(reloaded.data.active.id,a.session.id);
+  }
+});

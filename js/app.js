@@ -53,7 +53,9 @@ function mobilityApp() {
     async requestWakeLock(){try{if(!this.wakeLock && navigator.wakeLock)this.wakeLock=await navigator.wakeLock.request('screen');if(this.wakeLock)this.wakeLock.addEventListener('release',()=>this.wakeLock=null);}catch{}},
     releaseWakeLock(){if(this.wakeLock)this.wakeLock.release().catch(()=>{});this.wakeLock=null;},
     startRoutine(key){
-      if(this.data.active){this.message='Resume or save the unfinished session before starting another.';return;}
+      if(!this.routines[key])return;
+      if(this.data.active || this.session)this.deleteSession();
+      this.message='';
       const r=this.routines[key],light=key==='skills_med_primary' && this.lighter;
       this.activeWorkoutQueue=Training.queue(r,this.data.levels,light);this.currentSetIndex=0;
       this.session={id:crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random(),key,name:r.name,
@@ -96,6 +98,12 @@ function mobilityApp() {
       if(this.session.timer){this.timer=JSON.parse(JSON.stringify(this.session.timer));WorkoutTiming.pause(this.timer);}else this.prepareTimer();
       this.targetReps=this.session.targetReps || this.currentStep.reps;this.rangeSeconds=this.session.rangeSeconds || 2;this.message='';this.requestWakeLock();this.scrollTop();},
     closePending(status){this.session=this.data.active;this.currentSetIndex=this.session.index;this.finishSession(status);},
+    deleteSession(){
+      WorkoutTiming.pause(this.timer);this.session=null;this.data.active=null;
+      this.activeWorkoutQueue=[];this.currentSetIndex=0;this.timer=WorkoutTiming.create();
+      this.mode='selector';this.view='routines';this.save();this.releaseWakeLock();
+      this.message='Session deleted. You can start a new workout.';
+    },
     changeLevel(goal,value){this.data.levels[goal]=Number(value);this.save();},
     acceptProgression(goal){this.changeLevel(goal,this.data.levels[goal]+1);this.message='New variation selected. Start with conservative assistance and clean technique.';},
     editSession(s){this.editing=JSON.parse(JSON.stringify(s));this.editorOpen=true;},
