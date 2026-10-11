@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><title>Mobility Flow · Big 4 & Logbook</title>
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="app.css?v=compact-editor-1">
 <script defer src="js/mobility-data.js"></script><script defer src="js/training-data.js"></script>
-<script defer src="js/timing.js"></script><script defer src="js/storage.js"></script><script defer src="js/app.js"></script>
+<script defer src="js/timing.js"></script><script defer src="js/storage.js"></script><script defer src="js/app.js?v=compact-editor-1"></script>
 <script defer src="js/alpine.min.js"></script>
 </head>
 <body x-data="mobilityApp()" x-init="initApp()">
@@ -69,14 +69,16 @@
 </section></template>
 </main>
 <template x-if="editorOpen"><section class="dialog" role="dialog" aria-modal="true" aria-label="Edit workout entry" x-init="$nextTick(() => $el.querySelector('input').focus())" @keydown.escape.window="editorOpen=false"><div class="dialog-inner">
-<div class="row between"><h2>Edit workout</h2><button @click="editorOpen=false">Cancel</button></div><div class="notice" x-show="message" x-text="message"></div>
-<div class="grid"><label>Workout name<input x-model="editing.name"></label><label>Date<input type="date" x-model="editing.date"></label><label>Category<select x-model="editing.category"><option value="calisthenics">Calisthenics</option><option value="mobility">Mobility</option></select></label><label>Status<select x-model="editing.status"><option value="completed">Completed</option><option value="partial">Partial</option><option value="abandoned">Abandoned</option></select></label></div>
-<label>Workout notes<textarea x-model="editing.notes"></textarea></label>
-<template x-for="(r,i) in editing.results" :key="i"><div class="card">
-<div class="grid"><label>Exercise<input x-model="r.name"></label><label>Variation<input x-model="r.variation"></label><label>Set number<input type="number" min="1" x-model.number="r.set"></label><label>Reps / first side<input type="number" min="0" x-model.number="r.reps"></label><label>Reps / other side<input type="number" min="0" x-model.number="r.repsOther"></label><label>Hold / first side (s)<input type="number" min="0" step="0.1" x-model.number="r.hold"></label><label>Hold / other side (s)<input type="number" min="0" step="0.1" x-model.number="r.holdOther"></label><label>Load (kg)<input type="number" min="0" step="0.1" x-model.number="r.load"></label><label>Assistance<input x-model="r.assistance"></label><label>Reps in reserve<input type="number" min="0" max="10" x-model.number="r.effort"></label></div>
-<div class="stack" style="margin-top:12px"><label><input type="checkbox" x-model="r.clean">Clean form</label><label><input type="checkbox" x-model="r.tempo">Tempo followed</label><label><input type="checkbox" x-model="r.completed">Set completed</label><label>Notes<textarea x-model="r.notes"></textarea></label></div><button @click="editing.results.splice(i,1)">Remove set</button>
+<div class="row between editor-bar"><h2>Edit workout</h2><div class="row"><button class="primary" @click="saveEdit()">Save</button><button @click="deleteSession(editing.id)">Delete session</button><button @click="editorOpen=false">Cancel</button></div></div><div class="notice" x-show="message" x-text="message"></div>
+<div class="grid"><label>Workout name<input x-model="editing.name"></label><label>Date<input type="date" x-model="editing.date"></label></div>
+<p class="muted">One card per exercise. Enter one rep count for all sets, or counts separated by commas (5, 4, 3). Use 5/4 for different sides. Previous holds and other recorded details are retained.</p>
+<template x-for="(e,i) in editingExercises" :key="i"><div class="card editor-exercise">
+<div class="row between"><h3 x-text="e.name"></h3><button @click="editingExercises.splice(i,1)" :aria-label="'Remove '+e.name">Remove</button></div>
+<div class="grid"><label>Reps<input x-model="e.reps" placeholder="e.g. 5 or 5, 4, 3"></label><label>Sets<input type="number" min="1" max="1000" x-model.number="e.sets"></label></div>
+<label>Notes<textarea x-model="e.notes" rows="2"></textarea></label>
 </div></template>
-<div class="row"><button @click="addCustom(editing)">Add exercise / set</button><button class="primary" @click="saveEdit()">Save entry</button><button @click="editorOpen=false">Cancel</button></div>
+<div class="row"><label style="flex:1">Add exercise<input x-model="newExerciseName" placeholder="Exercise name" @keydown.enter.prevent="addEditorExercise()"></label><button @click="addEditorExercise()">Add</button></div>
+<details style="margin-top:16px"><summary>Workout details</summary><div class="grid"><label>Category<select x-model="editing.category"><option value="calisthenics">Calisthenics</option><option value="mobility">Mobility</option></select></label><label>Status<select x-model="editing.status"><option value="completed">Completed</option><option value="partial">Partial</option><option value="abandoned">Stopped</option></select></label></div><label>Workout notes<textarea x-model="editing.notes"></textarea></label></details>
 </div></section></template>
 </body>
 </html>

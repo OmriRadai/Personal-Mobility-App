@@ -1,7 +1,7 @@
 function mobilityApp() {
   return {
     mode:'selector',activeTab:'mobility',view:'routines',data:WorkoutStorage.fresh(),storageError:'',message:'',
-    activeWorkoutQueue:[],currentSetIndex:0,session:null,editing:{},editorOpen:false,wakeLock:null,
+    activeWorkoutQueue:[],currentSetIndex:0,session:null,editing:{},editingExercises:[],newExerciseName:'',editorOpen:false,wakeLock:null,
     timer:WorkoutTiming.create(),targetReps:1,rangeSeconds:2,lighter:false,clockHandle:null,lastTimerSave:0,
     routines:{...window.MOBILITY_ROUTINES,skills_med_primary:Training.primary,skills_med_secondary:Training.secondary},
     get headerTitle(){return this.mode==='active'?this.session?.name:'Mobility Flow';},
@@ -51,7 +51,7 @@ function mobilityApp() {
     },
     save(){if(this.session){this.session.index=this.currentSetIndex;this.session.targetReps=this.targetReps;this.session.rangeSeconds=this.rangeSeconds;this.session.timer=JSON.parse(JSON.stringify(this.timer));this.data.active=this.session;}this.storageError=WorkoutStorage.write(this.data);},
     async requestWakeLock(){try{if(!this.wakeLock && navigator.wakeLock)this.wakeLock=await navigator.wakeLock.request('screen');if(this.wakeLock)this.wakeLock.addEventListener('release',()=>this.wakeLock=null);}catch{}},
-    releaseWakeLock(){if(this.wakeLock)this.wakeLock.release().catch(()=>{});this.wakeLock=null;},
+    releaseWakeLock(){const lock=this.wakeLock;this.wakeLock=null;try{const pending=lock?.release();if(pending?.catch)pending.catch(()=>{});}catch{}},
     startRoutine(key){
       if(!this.routines[key])return;
       if(this.data.active || this.session)this.deleteSession();
@@ -98,19 +98,57 @@ function mobilityApp() {
       if(this.session.timer){this.timer=JSON.parse(JSON.stringify(this.session.timer));WorkoutTiming.pause(this.timer);}else this.prepareTimer();
       this.targetReps=this.session.targetReps || this.currentStep.reps;this.rangeSeconds=this.session.rangeSeconds || 2;this.message='';this.requestWakeLock();this.scrollTop();},
     closePending(status){this.session=this.data.active;this.currentSetIndex=this.session.index;this.finishSession(status);},
-    deleteSession(){
-      WorkoutTiming.pause(this.timer);this.session=null;this.data.active=null;
-      this.activeWorkoutQueue=[];this.currentSetIndex=0;this.timer=WorkoutTiming.create();
-      this.mode='selector';this.view='routines';this.save();this.releaseWakeLock();
-      this.message='Session deleted. You can start a new workout.';
+    deleteSession(id){
+      const target=id || this.session?.id || this.data.active?.id;
+      if(!target)return;
+      const active=target===this.session?.id || target===this.data.active?.id;
+      if(active){
+        WorkoutTiming.pause(this.timer);this.session=null;this.data.active=null;
+        this.mode='selector';this.activeWorkoutQueue=[];this.currentSetIndex=0;this.timer=WorkoutTiming.create();
+        this.releaseWakeLock();this.view='routines';
+      }
+      this.data.sessions=this.data.sessions.filter(s=>s.id!==target);
+      if(this.editorOpen && this.editing.id===target)this.editorOpen=false;
+      this.lighter=this.lighterDue;this.save();
+      this.message='Session deleted.';
+      if(active)this.scrollTop();
     },
     changeLevel(goal,value){this.data.levels[goal]=Number(value);this.save();},
     acceptProgression(goal){this.changeLevel(goal,this.data.levels[goal]+1);this.message='New variation selected. Start with conservative assistance and clean technique.';},
-    editSession(s){this.editing=JSON.parse(JSON.stringify(s));this.editorOpen=true;},
-    newEntry(){this.editing={id:crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random(),key:'custom',name:'Manual workout',category:'calisthenics',date:WorkoutStorage.date(this.data.timezone),started:new Date().toISOString(),status:'completed',queue:[],results:[],notes:''};this.addCustom(this.editing);this.editorOpen=true;},
-    addCustom(s){s.results.push(this.blankResult());},
+    editSession(s){this.editing=JSON.parse(JSON.stringify(s));this.groupEditorExercises();this.editorOpen=true;this.message='';},
+    groupEditorExercises(){
+      const groups=new Map();
+      for(const r of this.editing.results){
+        const key=r.exerciseId || r.name+'|'+r.variation;
+        if(!groups.has(key))groups.set(key,{name:r.name,rows:[]});
+        groups.get(key).rows.push(r);
+      }
+      this.editingExercises=[...groups.values()].map(e=>{
+        const values=e.rows.map(r=>String(r.reps)+(r.repsOther!==''?'/'+r.repsOther:''));
+        const notes=[...new Set(e.rows.map(r=>r.notes).filter(Boolean))].join('\n');
+        return {...e,sets:e.rows.length,reps:values.every(v=>v===values[0])?values[0]:values.join(', '),notes,originalNotes:notes};
+      });this.newExerciseName='';
+    },
+    newEntry(){this.editing={id:crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random(),key:'custom',name:'Manual workout',category:'calisthenics',date:WorkoutStorage.date(this.data.timezone),started:new Date().toISOString(),status:'completed',queue:[],results:[],notes:''};this.groupEditorExercises();this.editorOpen=true;this.message='';},
+    addEditorExercise(){const name=this.newExerciseName.trim();if(!name)return;this.editingExercises.push({name,rows:[],reps:'',sets:1,notes:'',originalNotes:''});this.newExerciseName='';},
     saveEdit(){
-      if(!this.editing.name.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(this.editing.date) || !this.editing.results.every(r=>this.validResult(r) && r.name.trim())){this.message='Provide a workout name, date, exercise names, and valid nonnegative results.';return;}
+      const results=[];
+      for(const e of this.editingExercises){
+        const values=String(e.reps).split(',').map(v=>v.trim());
+        if(!Number.isInteger(e.sets) || e.sets<1 || e.sets>1000 || !e.name.trim() || values.length!==1 && values.length!==e.sets){this.message='Use a whole number of sets and either one rep count or one count per set, separated by commas.';return;}
+        for(let i=0;i<e.sets;i++){
+          const parts=values[values.length===1?0:i].split('/').map(v=>v.trim());
+          if(parts.length>2 || parts.some(v=>v!=='' && !/^\d+$/.test(v))){this.message='Reps must be nonnegative whole numbers. Use 5/4 for different sides.';return;}
+          const r=e.rows[i]?JSON.parse(JSON.stringify(e.rows[i])):this.blankResult();
+          r.name=e.name;r.set=i+1;r.reps=parts[0]===''?'':Number(parts[0]);
+          if(parts.length===2)r.repsOther=parts[1]===''?'':Number(parts[1]);
+          if(!e.rows[i]){r.variation=e.name;r.completed=r.reps!=='';}
+          if(e.notes!==e.originalNotes || !e.rows[i])r.notes=e.notes;
+          if(!this.validResult(r)){this.message='Provide valid reps and sets.';return;}results.push(r);
+        }
+      }
+      if(!this.editing.name.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(this.editing.date)){this.message='Provide a workout name and date.';return;}
+      this.editing.results=results;
       const i=this.data.sessions.findIndex(s=>s.id===this.editing.id);if(i>=0)this.data.sessions[i]=this.editing;else this.data.sessions.push(this.editing);this.editorOpen=false;this.save();this.message='Logbook entry saved.';
     },
     exportData(){this.save();const blob=new Blob([JSON.stringify(this.data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='mobility-logbook-'+WorkoutStorage.date(this.data.timezone)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},

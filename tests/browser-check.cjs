@@ -54,11 +54,25 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
     await evaluate("Alpine.$data(document.body).finishSession('partial');Alpine.$data(document.body).newEntry()");await delay(150);
     assert.equal(await evaluate('!!document.querySelector(\'[role="dialog"]\')'),true);
     assert.equal(await evaluate("document.activeElement.getAttribute('x-model')"),'editing.name');
-    await evaluate("const a=Alpine.$data(document.body);a.editing.name='Browser test';a.editing.results[0].name='Pull-up';a.editing.results[0].reps=5;a.saveEdit()");await delay(150);
+    await evaluate("const a=Alpine.$data(document.body);a.editing.name='Browser test';a.newExerciseName='Pull-up';a.addEditorExercise();a.editingExercises[0].reps='5';a.saveEdit()");await delay(150);
     assert.equal(await evaluate('Alpine.$data(document.body).data.sessions.length'),2);
     // A fully completed session exercises the DOM teardown and logbook transition.
     await evaluate("const a=Alpine.$data(document.body);a.startRoutine('skills_med_secondary');while(a.mode==='active'){a.result.reps=3;a.result.repsOther=3;a.nextSet()}");await delay(150);
     assert.equal(await evaluate('Alpine.$data(document.body).mode'),'selector');
+    // Native pointer clicks verify the visible Delete buttons, not just the methods.
+    const clickVisibleDelete=async()=>{
+      await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Delete session' && b.getClientRects().length).scrollIntoView({block:'center'})");await delay(100);
+      const point=await evaluate("(()=>{const r=[...document.querySelectorAll('button')].find(b=>b.textContent==='Delete session' && b.getClientRects().length).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()");
+      await cmd('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});await cmd('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1});await delay(150);
+    };
+    await evaluate("Alpine.$data(document.body).startRoutine('skills_med_primary')");await delay(150);
+    await clickVisibleDelete();assert.equal(await evaluate('Alpine.$data(document.body).mode'),'selector');assert.equal(await evaluate('Alpine.$data(document.body).data.active'),null);
+    assert.equal(await evaluate("!!document.querySelector('.countdown')"),false,'active workout must disappear');
+    await evaluate('Alpine.$data(document.body).editSession(Alpine.$data(document.body).data.sessions[0])');await delay(150);
+    assert.equal(await evaluate("[...document.querySelectorAll('.editor-exercise')].every(e=>e.querySelectorAll('input,textarea').length===3)"),true);
+    assert.equal(await evaluate("document.querySelector('.dialog').scrollWidth<=innerWidth"),true,'editor overflow');
+    fs.writeFileSync('.test-results/editor.png',Buffer.from((await cmd('Page.captureScreenshot',{format:'png'})).data,'base64'));
+    const oldCount=await evaluate('Alpine.$data(document.body).data.sessions.length');await clickVisibleDelete();assert.equal(await evaluate('Alpine.$data(document.body).data.sessions.length'),oldCount-1);assert.equal(await evaluate('Alpine.$data(document.body).editorOpen'),false);
     assert.equal(errors.length,0,errors.join('\n'));
     console.log('PASS '+url+' — mobile layout, input binding, timers, reload recovery, logbook, completion');
   }

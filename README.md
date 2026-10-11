@@ -33,6 +33,8 @@ Actual reps, holds by side, load, assistance, reps in reserve, form, tempo and n
 
 Storage is local to the browser and origin (opening by file and by HTTP may have separate histories). Dates default to Asia/Jerusalem. Export JSON regularly. Import into an empty logbook restores levels and an unfinished session; otherwise it merges history by ID, retaining local duplicates, levels and the local unfinished session. Invalid imports do not overwrite data. Storage failure leaves work in memory and displays an export reminder.
 
+The workout editor groups sets into one card per exercise with just reps, sets and notes. Enter one rep count for every set, comma-separated counts for different sets, or slash-separated counts for different sides. Existing holds, load, assistance and per-set notes are preserved when unchanged. Save and Delete session remain at the top while scrolling. Deleting an active session closes the workout and returns to routines; deleting a saved workout closes the editor and removes only that logbook entry.
+
 Run verification with `node --test tests/core.test.cjs`. Browser checks use `node tests/browser-check.cjs` when Chrome or Edge is installed.
 
 The programming rationale draws on [resistance-training evidence](https://pmc.ncbi.nlm.nih.gov/articles/pmid/37414459/). These four advanced skill progressions are adaptations of the supplied trainer sheets; there is no guaranteed completion date.

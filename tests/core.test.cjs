@@ -76,8 +76,8 @@ test('backup validation, duplicate merges, and storage errors preserve in-memory
   c.localStorage.setItem=()=>{throw Error('quota');};a.save();assert.match(a.storageError,/Export|export/);assert.equal(a.data.sessions.length,1);
 });
 test('editing and custom sets persist actual data and timezone dates',()=>{
-  const c=context(),a=c.mobilityApp();a.newEntry();a.editing.name='Home practice';a.editing.results[0].name='Pull-up';a.editing.results[0].reps=5;a.editing.results[0].completed=true;a.addCustom(a.editing);a.editing.results[1].reps=4;a.saveEdit();
-  assert.equal(a.data.sessions[0].results.length,2);a.editSession(a.data.sessions[0]);a.editing.results[0].reps=6;a.saveEdit();assert.equal(a.data.sessions[0].results[0].reps,6);c.WorkoutStorage.validate(plain(a.data));assert.match(c.WorkoutStorage.date('Asia/Jerusalem'),/^\d{4}-\d{2}-\d{2}$/);
+  const c=context(),a=c.mobilityApp();a.newEntry();a.editing.name='Home practice';a.newExerciseName='Pull-up';a.addEditorExercise();a.editingExercises[0].reps='5, 4';a.editingExercises[0].sets=2;a.saveEdit();
+  assert.equal(a.data.sessions[0].results.length,2);a.editSession(a.data.sessions[0]);assert.equal(a.editingExercises.length,1);a.editingExercises[0].reps='6, 4';a.saveEdit();assert.equal(a.data.sessions[0].results[0].reps,6);c.WorkoutStorage.validate(plain(a.data));assert.match(c.WorkoutStorage.date('Asia/Jerusalem'),/^\d{4}-\d{2}-\d{2}$/);
 });
 test('backup import restores an empty device and rejects invalid data without overwriting history',async()=>{
   const c=context(),a=c.mobilityApp();a.startRoutine('skills_med_primary');a.data.levels.hspu=1;a.save();const backup=plain(a.data);
@@ -107,4 +107,20 @@ test('starting any new routine replaces unfinished work without saving it to his
     assert.deepEqual(plain(a.data.sessions),history);
     const reloaded=c.mobilityApp();reloaded.initApp();assert.equal(reloaded.data.active.id,a.session.id);
   }
+});
+test('compact editor preserves per-set holds and metadata while editing reps, sets and notes',()=>{
+  const c=context(),a=c.mobilityApp();a.startRoutine('skills_med_primary');
+  const rows=a.session.results.filter(r=>r.exerciseId==='pike');
+  rows.forEach((r,i)=>Object.assign(r,{reps:5-i,hold:10+i,load:2,assistance:'band',notes:'Set '+i}));a.finishSession('partial');
+  a.editSession(a.data.sessions[0]);const group=a.editingExercises.find(e=>e.name==='Pike push-up');assert.equal(group.sets,3);assert.equal(group.reps,'5, 4, 3');
+  a.saveEdit();const after=a.data.sessions[0].results.filter(r=>r.exerciseId==='pike');assert.deepEqual(plain(after),plain(rows));
+  a.editSession(a.data.sessions[0]);const updated=a.editingExercises.find(e=>e.name==='Pike push-up');updated.sets=2;updated.reps='6';updated.notes='Comfortable';a.saveEdit();
+  const reduced=a.data.sessions[0].results.filter(r=>r.exerciseId==='pike');assert.equal(reduced.length,2);assert.ok(reduced.every(r=>r.reps===6 && r.notes==='Comfortable'));assert.equal(reduced[0].hold,10);c.WorkoutStorage.validate(plain(a.data));
+});
+test('deleting saved history preserves unrelated pending work; wake-lock failure cannot block deletion',()=>{
+  const c=context(),a=c.mobilityApp();a.startRoutine('fs_a');a.finishSession('partial');const old=a.data.sessions[0];
+  a.startRoutine('skills_med_primary');a.exitWorkout();const pending=a.data.active.id;a.editSession(old);a.deleteSession(old.id);
+  assert.equal(a.data.sessions.length,0);assert.equal(a.editorOpen,false);assert.equal(a.data.active.id,pending);
+  a.resumeSession();a.wakeLock={release(){throw Error('Wake lock already released');}};a.deleteSession();
+  assert.equal(a.mode,'selector');assert.equal(a.data.active,null);const b=c.mobilityApp();b.initApp();assert.equal(b.data.active,null);
 });
