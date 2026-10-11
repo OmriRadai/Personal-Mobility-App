@@ -34,13 +34,13 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
       assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'selector overflow '+width);
     }
     await evaluate("const a=Alpine.$data(document.body);a.activeTab='calisthenics';a.startRoutine('skills_med_primary')");
-    await waitFor("document.querySelector('input[type=number]')!==null");
-    assert.equal(await evaluate("Alpine.$data(document.body).currentStep.id"),'prep');
-    await evaluate("{const input=[...document.querySelectorAll('input')].find(el=>el.getAttribute('x-model.number')==='result.hold');input.value='420';input.dispatchEvent(new Event('input',{bubbles:true}));}");
-    await delay(400);assert.equal(await evaluate('Alpine.$data(document.body).result.hold'),420);
-    await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Record & next')).click()");
-    await delay(150);assert.equal(await evaluate('Alpine.$data(document.body).currentSetIndex'),1);
-    assert.ok(await evaluate("parseFloat(getComputedStyle(document.querySelector('.timing-line')).fontSize)>=32"));
+    await waitFor("document.querySelector('.workout-screen')!==null");
+    assert.equal(await evaluate("Alpine.$data(document.body).currentStep.id"),'prep-wrists-forward');
+    assert.equal(await evaluate("document.querySelector('.workout-screen').querySelectorAll('input,textarea,details').length"),0);
+    assert.match(await evaluate("document.querySelector('.movement-title').textContent"),/Wrist rocks/);
+    assert.match(await evaluate("document.querySelector('.workout-target').textContent"),/10/);
+    assert.equal(await evaluate("document.querySelector('.workout-screen').textContent.includes('Repeat phase')"),false);
+    assert.ok(await evaluate("parseFloat(getComputedStyle(document.querySelector('.countdown')).fontSize)>=76"));
     for(const width of [320,390]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'active overflow '+width);}
     fs.mkdirSync('.test-results',{recursive:true});fs.writeFileSync('.test-results/mobile.png',Buffer.from((await cmd('Page.captureScreenshot',{format:'png'})).data,'base64'));
     await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Start / resume')).focus()");
@@ -48,16 +48,26 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
     await cmd('Input.dispatchKeyEvent',{type:'rawKeyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,nativeVirtualKeyCode:13});await cmd('Input.dispatchKeyEvent',{type:'char',text:'\r',unmodifiedText:'\r',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});await cmd('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,nativeVirtualKeyCode:13});await delay(100);
     assert.equal(await evaluate('Alpine.$data(document.body).timer.running'),true);
     assert.equal(await evaluate('Alpine.$data(document.body).result.reps'),'');
+    await evaluate("const a=Alpine.$data(document.body);WorkoutTiming.tick(a.timer,a.timer.deadline+1000);a.nextSet()");assert.equal(await evaluate('Alpine.$data(document.body).currentSetIndex'),1);
     await evaluate("Alpine.$data(document.body).timerStart();Alpine.$data(document.body).timerPause();Alpine.$data(document.body).save();location.reload()");
     await delay(200);await waitFor('typeof Alpine!=="undefined" && !!Alpine.$data(document.body).data.active');
     await evaluate('Alpine.$data(document.body).resumeSession()');assert.equal(await evaluate('Alpine.$data(document.body).currentSetIndex'),1);
-    await evaluate("Alpine.$data(document.body).finishSession('partial');Alpine.$data(document.body).newEntry()");await delay(150);
+    await evaluate("const a=Alpine.$data(document.body);while(a.mode==='active'){a.timer.done=true;a.nextSet()}");await delay(150);
+    assert.equal(await evaluate('Alpine.$data(document.body).mode'),'review');
+    assert.equal(await evaluate("!!document.querySelector('.workout-screen')"),false);
+    assert.equal(await evaluate('Alpine.$data(document.body).data.sessions.length'),0);
+    await evaluate("{const input=document.querySelector('.review-exercise input');input.value='10';input.dispatchEvent(new Event('input',{bubbles:true}));const hold=[...document.querySelectorAll('.review-exercise')].find(e=>e.querySelector('h3').textContent==='Handstand control practice').querySelector('input');hold.value='23.5';hold.dispatchEvent(new Event('input',{bubbles:true}));}");await delay(350);
+    assert.equal(await evaluate("Alpine.$data(document.body).session.results.find(r=>r.exerciseId==='balance').hold"),23.5);
+    assert.equal(await evaluate('Alpine.$data(document.body).session.results[0].reps'),10);
+    await evaluate('Alpine.$data(document.body).save();location.reload()');await delay(200);await waitFor('typeof Alpine!=="undefined" && !!Alpine.$data(document.body).data.active');
+    await evaluate('Alpine.$data(document.body).resumeSession()');assert.equal(await evaluate('Alpine.$data(document.body).mode'),'review');
+    await evaluate("Alpine.$data(document.body).saveReview();Alpine.$data(document.body).newEntry()");await delay(150);
     assert.equal(await evaluate('!!document.querySelector(\'[role="dialog"]\')'),true);
     assert.equal(await evaluate("document.activeElement.getAttribute('x-model')"),'editing.name');
     await evaluate("const a=Alpine.$data(document.body);a.editing.name='Browser test';a.newExerciseName='Pull-up';a.addEditorExercise();a.editingExercises[0].reps='5';a.saveEdit()");await delay(150);
     assert.equal(await evaluate('Alpine.$data(document.body).data.sessions.length'),2);
     // A fully completed session exercises the DOM teardown and logbook transition.
-    await evaluate("const a=Alpine.$data(document.body);a.startRoutine('skills_med_secondary');while(a.mode==='active'){a.result.reps=3;a.result.repsOther=3;a.nextSet()}");await delay(150);
+    await evaluate("const a=Alpine.$data(document.body);a.startRoutine('skills_med_secondary');while(a.mode==='active'){a.timer.done=true;a.nextSet()}for(const g of a.reviewGroups)for(const r of g.rows){r[g.type==='time'?'hold':'reps']=g.type==='time'?30:5;if(g.sides)r[g.type==='time'?'holdOther':'repsOther']=g.type==='time'?30:5}a.saveReview()");await delay(150);
     assert.equal(await evaluate('Alpine.$data(document.body).mode'),'selector');
     // Native pointer clicks verify the visible Delete buttons, not just the methods.
     const clickVisibleDelete=async()=>{
@@ -66,6 +76,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
       await cmd('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});await cmd('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1});await delay(150);
     };
     await evaluate("Alpine.$data(document.body).startRoutine('skills_med_primary')");await delay(150);
+    await evaluate("Alpine.$data(document.body).openReview()");await delay(150);
     await clickVisibleDelete();assert.equal(await evaluate('Alpine.$data(document.body).mode'),'selector');assert.equal(await evaluate('Alpine.$data(document.body).data.active'),null);
     assert.equal(await evaluate("!!document.querySelector('.countdown')"),false,'active workout must disappear');
     await evaluate('Alpine.$data(document.body).editSession(Alpine.$data(document.body).data.sessions[0])');await delay(150);

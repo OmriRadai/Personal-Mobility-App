@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><title>Mobility Flow · Big 4 & Logbook</title>
-<link rel="stylesheet" href="app.css?v=compact-editor-1">
-<script defer src="js/mobility-data.js"></script><script defer src="js/training-data.js"></script>
-<script defer src="js/timing.js"></script><script defer src="js/storage.js"></script><script defer src="js/app.js?v=compact-editor-1"></script>
+<link rel="stylesheet" href="app.css?v=guided-workout-2">
+<script defer src="js/mobility-data.js"></script><script defer src="js/training-data.js?v=guided-workout-2"></script>
+<script defer src="js/timing.js?v=guided-workout-2"></script><script defer src="js/storage.js?v=guided-workout-2"></script><script defer src="js/app.js?v=guided-workout-2"></script>
 <script defer src="js/alpine.min.js"></script>
 </head>
 <body x-data="mobilityApp()" x-init="initApp()">
 <noscript><main>This workout app needs JavaScript enabled.</main></noscript>
-<header><button x-show="mode==='active'" @click="exitWorkout()" x-cloak>← Pause</button><h1 x-text="headerTitle">Mobility Flow</h1><span x-text="mode==='active'?(currentSetIndex+1)+'/'+activeWorkoutQueue.length:'Ready'"></span></header>
+<header x-show="mode!=='active'"><button x-show="mode==='active'" @click="exitWorkout()" x-cloak>← Pause</button><h1 x-text="headerTitle">Mobility Flow</h1><span x-text="mode==='active'?(currentSetIndex+1)+'/'+activeWorkoutQueue.length:'Ready'"></span></header>
 <main :inert="editorOpen ? '' : null">
 <div class="notice error" role="alert" x-show="storageError" x-text="storageError" x-cloak></div>
 <div class="notice row between" role="status" x-show="message" x-cloak><span x-text="message"></span><button @click="message=''" aria-label="Dismiss message">×</button></div>
@@ -30,7 +30,7 @@
 <template x-for="goal in suggestions" :key="goal"><div class="notice"><p x-text="'Two successful primary sessions: consider '+Training.levels[goal][data.levels[goal]+1]+'.'"></p><button @click="acceptProgression(goal)">Confirm next variation</button></div></template>
 <details><summary>Programming & source notes</summary><p>Adapted from Petar’s Cycles 1 and 2, including spreadsheet comments. Pairing, volume and frequency are adjusted for one primary session. Muscle-up foundations and freestanding balance practice are additions. Original prescriptions and links appear in each exercise.</p><p>Keep 1–2 reps in reserve. Stop explosive pulls when speed or height falls. Optional practice stays at least 3 reps from failure and never advances progression.</p><p>About 55–60 minutes including preparation, practice, work, rests and transitions. Keep prescribed rests even if a session runs longer.</p><a href="Bodyweight%20%26%20Calisthenics/Petar/Omri%20Radai%20-%20Cycle%201.xlsx">Petar Cycle 1</a> · <a href="Bodyweight%20%26%20Calisthenics/Petar/Omri%20Radai%20-%20Cycle%202.xlsx">Petar Cycle 2</a></details>
 </div>
-<template x-for="(routine,key) in filteredRoutines" :key="key"><article class="card"><div class="row between"><h3 x-text="routine.name"></h3><button class="primary" @click="startRoutine(key)">Start</button></div><p class="muted" x-text="routine.exercises.length+' exercises · approximately '+routine.duration+' minutes'"></p><p x-show="routine.description" x-text="routine.description"></p></article></template>
+<template x-for="(routine,key) in filteredRoutines" :key="key"><article class="card"><div class="row between"><h3 x-text="routine.name"></h3><button class="primary" @click="startRoutine(key)">Start</button></div><p class="muted" x-text="routine.exercises.length+' exercise blocks · approximately '+routine.duration+' minutes'"></p><p x-show="routine.description" x-text="routine.description"></p><details><summary>Movements, instructions & sources</summary><template x-for="e in routineExercises(routine)" :key="e.id"><div class="log-row"><strong x-text="e.branded_name"></strong><p class="muted" x-text="e.source"></p><ul><template x-for="(cue,i) in e.movement_cues || []" :key="i"><li x-text="cue"></li></template></ul><a x-show="e.video" :href="e.video" target="_blank" rel="noopener">Demonstration</a></div></template></details></article></template>
 </section>
 <section x-show="view==='logbook'">
 <div class="row between"><h2>Workout logbook</h2><button class="primary" @click="newEntry()">Add workout</button></div><p class="muted">Saved on this device. Export a backup to move or protect your history.</p>
@@ -38,34 +38,33 @@
 <template x-for="s in history" :key="s.id"><article class="card"><div class="row between"><h3 x-text="s.name"></h3><button @click="editSession(s)">Edit</button></div><p class="tag" x-text="s.date+' · '+s.category+' · '+s.status+(s.lighter?' · lighter':'')"></p><p x-text="s.notes"></p><details><summary x-text="s.results.filter(r=>r.completed || r.reps!=='' || r.hold!=='').length+' recorded sets · view details'"></summary><template x-for="(r,i) in s.results" :key="i"><div class="log-row"><strong x-text="r.name+' · set '+r.set"></strong><p x-text="formatResult(r)"></p><p class="muted" x-text="r.assistance"></p><p x-text="r.notes"></p></div></template></details></article></template>
 </section>
 </section>
-<template x-if="mode==='active' && session"><section>
-<p class="tag" x-text="currentStep.category"></p><h2 x-text="currentStep.branded_name"></h2><p class="muted" x-text="currentStep.biomechanical_name"></p>
-<div class="progress" aria-hidden="true"><div :style="'width:'+100*(currentSetIndex+1)/activeWorkoutQueue.length+'%'"></div></div>
-<div class="card"><p class="tag" x-text="'Set '+currentStep.currentSetNumber+' of '+currentStep.totalSets"></p><div class="big" x-text="prescription"></div><div class="grid"><template x-for="line in timingSummary" :key="line.label"><div><div class="timing-line" x-text="line.value"></div><span class="muted" x-text="line.label"></span></div></template></div><p class="muted" x-show="timingSummary.length===0">No duration prescribed: count repetitions at your own pace.</p></div>
-<div class="card"><h3>Guided set timer</h3>
-<p class="tag" x-text="(phase.side || '')+(phase.rep?' · Rep '+phase.rep:'')"></p>
-<div class="big" x-text="timer.done?'Set timing finished':phase.label"></div><div class="countdown" role="timer" aria-label="Seconds remaining" x-text="timer.done?'Done':timer.remaining===null?'Your pace':Math.ceil(timer.remaining)+'s'"></div>
-<div class="big" x-show="timer.descentDeadline || phase.label?.startsWith('Complete lower')" x-text="Math.ceil(timer.descentRemaining)+'s descent remaining'"></div>
-<p class="muted">Timed phases advance automatically. Tap “Next phase” after untimed movement. Start the next set yourself; results are entered separately.</p>
-<div class="row"><button class="primary" @click="timerStart()" :disabled="timer.running || timer.done">Start / resume</button><button @click="timerPause()" :disabled="!timer.running">Pause</button><button @click="timerNext()" :disabled="timer.done" x-text="phase.kind==='rest'?'Skip rest':'Next phase'"></button><button @click="timerRepeat()">Repeat phase</button><button @click="finishEarly()">Finish set early</button></div>
-<details style="margin-top:12px"><summary>Adjust guided reps / duration</summary><div class="grid"><label>Reps to guide (not actual results)<input type="number" min="1" max="1000" x-model.number="targetReps" @change="rebuildTimer()" :disabled="timer.running"></label><label x-show="annotation.range">Prescribed descent: 2–3 seconds<select x-model.number="rangeSeconds" @change="rebuildTimer()" :disabled="timer.running"><option value="2">2 seconds</option><option value="3">3 seconds</option></select></label></div></details>
+<template x-if="mode==='active' && session"><section class="workout-screen">
+<div class="row"><button class="workout-back" @click="exitWorkout()" aria-label="Pause and return to routines">&larr;</button><h2 class="stage-title" x-text="stageTitle"></h2></div>
+<p class="set-line" x-text="'Set '+currentStep.currentSetNumber+' of '+currentStep.totalSets"></p>
+<h3 class="movement-title" x-text="movementTitle"></h3>
+<p class="workout-target" x-text="timer.done?'Set complete':(phase.target || prescription)+(phase.estimated?' - guided pace':'')"></p>
+<p class="phase-line" x-show="!timer.done" x-text="(phase.side?phase.side+' - ':'')+(phase.rep?'Rep '+phase.rep+' of '+(annotation.half?currentStep.reps/2:currentStep.reps)+' - ':'')+(phase.label || '')"></p>
+<div class="countdown" role="timer" aria-label="Time remaining" x-text="timer.done?'Done':timerDisplay"></div>
+<div class="row timer-controls">
+<button class="primary" @click="timerStart()" :disabled="timer.running || timer.done">Start / resume</button>
+<button @click="timerPause()" :disabled="!timer.running">Pause</button>
+<button class="primary" x-show="timer.done" @click="nextSet()" x-text="currentSetIndex===activeWorkoutQueue.length-1?'Record workout':'Next set'"></button>
 </div>
-<div class="card"><h3>Record what you performed</h3><p class="muted">Actual results stay blank until entered. Assistance can describe bands, support or lean distance.</p>
-<div class="grid">
-<label>Actual reps / first side<input type="number" min="0" x-model.number="result.reps" @input.debounce.300ms="save()"></label>
-<label x-show="annotation.sides">Actual reps / other side<input type="number" min="0" x-model.number="result.repsOther" @input.debounce.300ms="save()"></label>
-<label>Actual hold / first side (s)<input type="number" min="0" step="0.1" x-model.number="result.hold" @input.debounce.300ms="save()"></label>
-<label x-show="annotation.sides">Actual hold / other side (s)<input type="number" min="0" step="0.1" x-model.number="result.holdOther" @input.debounce.300ms="save()"></label>
-<label>Added load (kg)<input type="number" min="0" step="0.1" x-model.number="result.load" @input.debounce.300ms="save()"></label>
-<label>Reps in reserve (0–10)<input type="number" min="0" max="10" x-model.number="result.effort" @input.debounce.300ms="save()"></label>
-<label>Variation performed<input x-model="result.variation" @input.debounce.300ms="save()"></label>
-<label>Assistance / setup<input x-model="result.assistance" @input.debounce.300ms="save()"></label>
-</div>
-<div class="stack" style="margin-top:16px"><label><input type="checkbox" x-model="result.clean" @change="save()">Clean form throughout</label><label><input type="checkbox" x-model="result.tempo" @change="save()">Prescribed tempo followed</label><label>Set notes<textarea x-model="result.notes" @input.debounce.300ms="save()"></textarea></label></div>
-</div>
-<details class="card" open><summary>Execution & sources</summary><p x-show="currentStep.starting_position" x-text="currentStep.starting_position"></p><ul><template x-for="(cue,i) in currentStep.movement_cues || []" :key="i"><li x-text="cue"></li></template></ul><ul><template x-for="(fault,i) in currentStep.common_faults || []" :key="i"><li x-text="'Avoid: '+fault"></li></template></ul><p class="muted" x-show="currentStep.source" x-text="currentStep.source"></p><a x-show="currentStep.video" :href="currentStep.video" target="_blank" rel="noopener">Demonstration</a></details>
-<div class="row"><button @click="prevSet()" :disabled="currentSetIndex===0">← Previous set</button><button class="primary" @click="nextSet()" x-text="currentSetIndex===activeWorkoutQueue.length-1?'Record & finish session':'Record & next set →'"></button><button @click="skipSet()">Skip set</button></div>
-<div class="card"><label>Workout notes<textarea x-model="sessionNotes" @input.debounce.300ms="save()"></textarea></label><div class="row" style="margin-top:12px"><button @click="finishSession('partial')">Save partial session</button><button @click="deleteSession()">Delete session</button><button @click="exportData()">Export backup</button></div></div>
+</section></template>
+<template x-if="mode==='review' && session"><section class="workout-review">
+<h2>Record your workout</h2>
+<p class="muted">Enter actual results for each set. Leave a set blank if you did not perform it.</p>
+<template x-for="group in reviewGroups" :key="group.key"><div class="card review-exercise">
+<h3 x-text="group.name"></h3><p class="muted" x-text="group.rows.length+' sets - '+(group.type==='time'?'seconds per set':'reps per set')"></p>
+<template x-for="(r,i) in group.rows" :key="r.queueIndex"><div class="grid review-set">
+<label><span x-text="'Set '+(i+1)+(group.sides?' - '+group.sides[0]:'')+(group.type==='time'?' (seconds)':' (reps)')"></span><input type="number" min="0" :step="group.type==='time'?'0.1':'1'" x-model.number="r[group.type==='time'?'hold':'reps']" @input.debounce.300ms="save()"></label>
+<label x-show="group.sides"><span x-text="'Set '+(i+1)+' - '+(group.sides?.[1] || 'other side')+(group.type==='time'?' (seconds)':' (reps)')"></span><input type="number" min="0" :step="group.type==='time'?'0.1':'1'" x-model.number="r[group.type==='time'?'holdOther':'repsOther']" @input.debounce.300ms="save()"></label>
+</div></template>
+<label>Exercise notes<textarea rows="2" x-model="session.exerciseNotes[group.key]" @input.debounce.300ms="save()" placeholder="Optional"></textarea></label>
+</div></template>
+<label>Workout notes<textarea x-model="sessionNotes" @input.debounce.300ms="save()" placeholder="Optional"></textarea></label>
+<label style="margin-top:16px"><input type="checkbox" x-model="session.qualityConfirmed" @change="save()">For progression: I kept clean form and prescribed tempos, with at least one rep in reserve.</label>
+<div class="row review-actions"><button class="primary" @click="saveReview()">Save workout</button><button @click="finishSession('partial')">Save partial</button><button @click="exitWorkout()">Save for later</button><button @click="deleteSession()">Delete session</button></div>
 </section></template>
 </main>
 <template x-if="editorOpen"><section class="dialog" role="dialog" aria-modal="true" aria-label="Edit workout entry" x-init="$nextTick(() => $el.querySelector('input').focus())" @keydown.escape.window="editorOpen=false"><div class="dialog-inner">
@@ -74,7 +73,7 @@
 <p class="muted">One card per exercise. Enter one rep count for all sets, or counts separated by commas (5, 4, 3). Use 5/4 for different sides. Previous holds and other recorded details are retained.</p>
 <template x-for="(e,i) in editingExercises" :key="i"><div class="card editor-exercise">
 <div class="row between"><h3 x-text="e.name"></h3><button @click="editingExercises.splice(i,1)" :aria-label="'Remove '+e.name">Remove</button></div>
-<div class="grid"><label>Reps<input x-model="e.reps" placeholder="e.g. 5 or 5, 4, 3"></label><label>Sets<input type="number" min="1" max="1000" x-model.number="e.sets"></label></div>
+<div class="grid"><label><span x-text="e.type==='time'?'Time per set (seconds)':'Reps'"></span><input x-model="e.reps" :placeholder="e.type==='time'?'e.g. 30, 25, 20':'e.g. 5 or 5, 4, 3'"></label><label>Sets<input type="number" min="1" max="1000" x-model.number="e.sets"></label></div>
 <label>Notes<textarea x-model="e.notes" rows="2"></textarea></label>
 </div></template>
 <div class="row"><label style="flex:1">Add exercise<input x-model="newExerciseName" placeholder="Exercise name" @keydown.enter.prevent="addEditorExercise()"></label><button @click="addEditorExercise()">Add</button></div>

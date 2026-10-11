@@ -11,7 +11,7 @@ window.WorkoutStorage = (() => {
       && (e.video===undefined || /^https:\/\//.test(e.video))
       && (e.movement_cues===undefined || Array.isArray(e.movement_cues) && e.movement_cues.every(text))
       && (e.common_faults===undefined || Array.isArray(e.common_faults) && e.common_faults.every(text))
-      && (!e.timing || typeof e.timing==='object' && ['block','hold','finalHold','perHold','sideRest','descent'].every(k=>e.timing[k]===undefined || number(e.timing[k]))
+      && (!e.timing || typeof e.timing==='object' && ['work','block','hold','finalHold','perHold','sideRest','descent'].every(k=>e.timing[k]===undefined || number(e.timing[k]))
         && (!e.timing.sides || Array.isArray(e.timing.sides) && e.timing.sides.every(text))
         && (!e.timing.phases || Array.isArray(e.timing.phases) && e.timing.phases.every(p=>Array.isArray(p) && text(p[0]) && (p[1]===null || number(p[1]))))));
   }
@@ -23,6 +23,8 @@ window.WorkoutStorage = (() => {
     for(const s of [...d.sessions,...(d.active?[d.active]:[])]) {
       if(!s || !text(s.id) || ids.has(s.id) || !text(s.name) || !text(s.started) || !/^\d{4}-\d{2}-\d{2}$/.test(s.date) || !['calisthenics','mobility'].includes(s.category) || !['active','completed','partial','abandoned'].includes(s.status) || !validQueue(s.queue) || !Array.isArray(s.results) || s.results.length>4000)throw Error('Invalid session.');
       ids.add(s.id);
+      if(s.qualityConfirmed!==undefined && typeof s.qualityConfirmed!=='boolean')throw Error('Invalid progression confirmation.');
+      if(s.stage!==undefined && !['workout','review'].includes(s.stage) || s.exerciseNotes && (typeof s.exerciseNotes!=='object' || Array.isArray(s.exerciseNotes) || !Object.values(s.exerciseNotes).every(text)))throw Error('Invalid workout review.');
       for(const r of s.results) {
         if(!r || !text(r.name) || !Number.isInteger(r.set) || r.set<1 || !['reps','repsOther','hold','holdOther','load','effort'].every(k=>number(r[k] ?? '')) || (r.effort!=='' && r.effort>10) || !text(r.notes ?? '') || (r.queueIndex!==-1 && (!Number.isInteger(r.queueIndex) || !s.queue[r.queueIndex])))throw Error('Invalid set result.');
       }

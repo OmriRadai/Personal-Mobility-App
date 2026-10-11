@@ -22,7 +22,8 @@ test('pairs alternate and lighter work reduces sets without changing preparation
   assert.deepEqual(plain(q.filter(e=>e.group==='A').map(e=>e.id)),['oac','pike','oac','pike','oac','pike']);
   assert.deepEqual(plain(q.filter(e=>e.group==='B').map(e=>e.id)),['planche','row','planche','row','planche','row']);
   assert.equal(light.filter(e=>e.id==='oac').length,2);assert.equal(light.filter(e=>e.id==='face').length,1);
-  assert.equal(light[0].timing.block,420);
+  assert.equal(light.filter(e=>e.id.startsWith('prep-')).reduce((n,e)=>n+e.timing.work+e.rest_seconds,0),420);
+  assert.equal(light.filter(e=>e.id==='balance').length,5);
   assert.deepEqual(plain(T.queue(T.secondary,{oac:2,hspu:3,planche:5,muscle:2})),plain(T.queue(T.secondary)));
   const advanced=T.queue(T.primary,{muscle:1});assert.equal(advanced.filter(e=>e.goal==='muscle').length,2);
 });
@@ -54,12 +55,13 @@ test('OAC eccentric time excludes pause and resets for every repetition',()=>{
   T.tick(t,9000);assert.equal(t.phases[t.index].label,'Get to top with assistance');assert.equal(t.descentRemaining,5);
   T.next(t,10000);T.next(t,12000);T.tick(t,20000);assert.equal(t.phases[t.index].kind,'side');assert.equal(t.remaining,28);
 });
-test('session results require actual entry and restore after reload; skipped sets produce partial history',()=>{
-  const c=context(),a=c.mobilityApp();a.initApp();a.startRoutine('skills_med_primary');a.timer.done=true;a.nextSet();assert.equal(a.currentSetIndex,0);assert.equal(a.result.reps,'');
-  a.result.hold=420;a.nextSet();assert.equal(a.currentSetIndex,1);a.exitWorkout();
-  const b=c.mobilityApp();b.initApp();b.resumeSession();assert.equal(b.currentSetIndex,1);assert.equal(b.session.results[0].hold,420);
-  while(b.mode==='active')b.skipSet();assert.equal(b.data.sessions[0].status,'partial');assert.equal(b.data.active,null);
-  c.WorkoutStorage.validate(plain(b.data));
+test('sets advance without logging; end-of-workout review survives reload and blanks save as partial',()=>{
+  const c=context(),a=c.mobilityApp();a.initApp();a.startRoutine('skills_med_primary');a.nextSet();assert.equal(a.currentSetIndex,0);
+  a.timer.done=true;a.nextSet();assert.equal(a.currentSetIndex,1);assert.equal(a.session.results[0].reps,'');a.exitWorkout();
+  const b=c.mobilityApp();b.initApp();b.resumeSession();assert.equal(b.currentSetIndex,1);
+  while(b.mode==='active'){b.timer.done=true;b.nextSet();}assert.equal(b.mode,'review');assert.equal(b.data.sessions.length,0);
+  const third=c.mobilityApp();third.initApp();third.resumeSession();assert.equal(third.mode,'review');third.saveReview();
+  assert.equal(third.data.sessions[0].status,'partial');assert.equal(third.data.active,null);c.WorkoutStorage.validate(plain(third.data));
 });
 test('progression requires two full successful primary sessions at the current level',()=>{
   const c=context(),a=c.mobilityApp();a.initApp();
@@ -123,4 +125,48 @@ test('deleting saved history preserves unrelated pending work; wake-lock failure
   assert.equal(a.data.sessions.length,0);assert.equal(a.editorOpen,false);assert.equal(a.data.active.id,pending);
   a.resumeSession();a.wakeLock={release(){throw Error('Wake lock already released');}};a.deleteSession();
   assert.equal(a.mode,'selector');assert.equal(a.data.active,null);const b=c.mobilityApp();b.initApp();assert.equal(b.data.active,null);
+});
+test('all categories and skill levels have named, finite guided timers without changing mobility data',()=>{
+  const c=context();
+  const routines=[...Object.values(c.MOBILITY_ROUTINES),c.Training.primary,c.Training.secondary];
+  for(const routine of routines)for(const levels of [{oac:0,hspu:0,planche:0,muscle:0},{oac:2,hspu:3,planche:5,muscle:2}]){
+    for(const e of c.Training.queue(routine,levels)){
+      const phases=c.WorkoutTiming.guidedPhases(e);assert.ok(phases.length>0,e.branded_name);
+      assert.ok(phases.every(p=>Number.isFinite(p.seconds) && p.seconds>0 && p.movement && p.target),e.branded_name);
+    }
+  }
+  const proxied=new Proxy(c.Training.primary,{});assert.equal(c.Training.queue(proxied,{muscle:1}).filter(e=>e.goal==='muscle').length,2);
+});
+test('preparation uses supplied warm-up names and preserves 7-minute/3-minute blocks',()=>{
+  const c=context(),primary=c.Training.queue(c.Training.primary).filter(e=>e.parent_name),secondary=c.Training.queue(c.Training.secondary).filter(e=>e.parent_name);
+  assert.equal(primary.reduce((sum,e)=>sum+c.WorkoutTiming.guidedPhases(e).reduce((n,p)=>n+p.seconds,0),0),420);
+  assert.equal(secondary.reduce((sum,e)=>sum+c.WorkoutTiming.guidedPhases(e).reduce((n,p)=>n+p.seconds,0),0),180);
+  for(const name of ['Wrist Flexor Opener','Wrist Extensor Opener','Finger Stretch','Scap Push-Up','Palm Peel Aways'])assert.ok(primary.some(e=>e.branded_name===name));
+  assert.ok(!primary.some(e=>/Scapular pulls|Palm lifts/.test(e.branded_name)));
+});
+test('review records seconds for each hold set, reps for strength sets and per-exercise notes',()=>{
+  const c=context(),a=c.mobilityApp();a.initApp();a.startRoutine('skills_med_primary');
+  while(a.mode==='active'){a.timer.done=true;a.nextSet();}assert.ok(a.session.results.every(r=>r.reps==='' && r.hold===''));
+  const holds=a.reviewGroups.find(g=>g.key==='balance'),push=a.reviewGroups.find(g=>g.key==='pike');
+  assert.equal(holds.type,'time');assert.equal(holds.rows.length,5);assert.equal(push.type,'reps');assert.equal(push.rows.length,3);
+  for(const g of a.reviewGroups)for(const r of g.rows){r[g.type==='time'?'hold':'reps']=g.type==='time'?23.5:5;if(g.sides)r[g.type==='time'?'holdOther':'repsOther']=5;}
+  a.session.exerciseNotes.balance='Better rib position';a.session.notes='Good session';a.saveReview();
+  assert.equal(a.data.sessions[0].status,'completed');assert.equal(a.data.sessions[0].notes,'Good session');
+  const saved=a.data.sessions[0].results.filter(r=>r.exerciseId==='balance');assert.ok(saved.every(r=>r.hold===23.5 && r.reps==='' && r.notes==='Better rib position'));
+  a.editSession(a.data.sessions[0]);const group=a.editingExercises.find(g=>g.name==='Handstand control practice');assert.equal(group.type,'time');group.reps='30.5';a.saveEdit();
+  assert.ok(a.data.sessions[0].results.filter(r=>r.exerciseId==='balance').every(r=>r.hold===30.5));c.WorkoutStorage.validate(plain(a.data));
+});
+test('optional final quality confirmation preserves progression without inventing effort results',()=>{
+  const c=context(),a=c.mobilityApp();a.initApp();
+  for(let n=0;n<2;n++){
+    a.startRoutine('skills_med_primary');while(a.mode==='active'){a.timer.done=true;a.nextSet();}
+    for(const g of a.reviewGroups)for(const r of g.rows){const e=a.session.queue[r.queueIndex];r[g.type==='time'?'hold':'reps']=g.type==='time'?30:e.rep_max || e.reps;if(g.sides)r[g.type==='time'?'holdOther':'repsOther']=e.rep_max || e.reps;}
+    a.session.qualityConfirmed=true;a.saveReview();
+  }
+  assert.equal(a.suggestions.length,4);assert.ok(a.data.sessions.every(s=>s.results.every(r=>r.effort==='')));
+});
+test('legacy unfinished exercises are retained and rebuilt into finite guides on resume',()=>{
+  const c=context(),a=c.mobilityApp();a.initApp();a.startRoutine('fs_a');const id=a.session.id;
+  delete a.session.guideVersion;a.session.timer={phases:[{label:'Manual',seconds:null}],index:0,running:false,remaining:null,deadline:0,done:false};a.save();
+  const b=c.mobilityApp();b.initApp();b.resumeSession();assert.equal(b.session.id,id);assert.equal(b.session.guideVersion,2);assert.ok(b.timer.phases.every(p=>Number.isFinite(p.seconds)));
 });

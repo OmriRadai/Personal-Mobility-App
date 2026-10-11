@@ -64,5 +64,48 @@ window.WorkoutTiming = (() => {
       break;
     }
   }
-  return {annotation,phases,create,load,start,pause,next,tick};
+  // Fixed guidance windows are app pacing estimates unless a hold or tempo exists.
+  function guidedPhases(e) {
+    const a=annotation(e),result=[];
+    const add=(label,seconds,target,movement=e.branded_name,kind='work',side='',rep=0,estimated=false)=>result.push({label,seconds,target,movement,kind,side,rep,estimated});
+    const repsText=(n=a.half?e.reps/2:e.reps)=>`${n}${e.rep_max?'–'+e.rep_max:''} ${e.reps_unit==='seconds'?'seconds':'reps'}`;
+    if(a.work){add('Work',a.work,repsText(),e.branded_name,'work','',0,true);}
+    else if(a.block && /handstand/i.test(e.branded_name)) {
+      let remaining=a.block;
+      while(remaining>0){const work=Math.min(30,remaining);add('Hold / balance attempt',work,`${work}s supported balance attempt`);remaining-=work;
+        if(remaining>0){const rest=Math.min(30,remaining);add('Rest between attempts',rest,'Rest',e.branded_name,'rest');remaining-=rest;}}
+    }else if(a.block && ['prep','easy-prep'].includes(e.id)) {
+      for(const step of Training.preparation(e)){add('Work',step.seconds,`${step.reps} reps`,step.branded_name);if(step.rest_seconds)add('Rest',step.rest_seconds,'Rest',step.branded_name,'rest');}
+    }else if(a.block){add('Practice',a.block,`${a.block}s practice`);}
+    else if(a.patterns){for(const pattern of a.patterns)add('Work',e.reps*3,`${e.reps} reps`,e.branded_name+' — '+pattern,'work','',0,true);}
+    else if(a.manualPattern){add('Guided work window',120,`${e.reps} reps per move`,e.branded_name,'work','',0,true);}
+    else if(a.descent){
+      const sides=a.sides || [''];
+      for(let si=0;si<sides.length;si++){
+        for(let r=1;r<=e.reps;r++){
+          add('Get to top with assistance',3,repsText(),e.branded_name,'work',sides[si],r,true);
+          add('Controlled negative + weak-point hold',8,`${e.reps} reps · 5s lower + 3s hold at your weak point`,e.branded_name,'work',sides[si],r);
+        }
+        if(si<sides.length-1)add('Change arms',a.sideRest || 30,'Rest',e.branded_name,'side',sides[si]);
+      }
+    }
+    else {
+      const old=phases({...e,rest_seconds:0});
+      const plain=!a.hold && !a.perHold && !a.finalHold && !a.phases;
+      if(plain){for(const side of a.sides || [''])add('Work',(a.half?e.reps/2:e.reps)*3,repsText(a.half?e.reps/2:e.reps),e.branded_name,'work',side,0,true);}
+      else for(const p of old){
+        let seconds=p.seconds,label=p.label;
+        if(seconds===null){
+          seconds=p.kind==='side'?10:label.startsWith('Get to top')?3:label.startsWith('Lower toward') || label.startsWith('Complete lower')?2.5:label.includes('Explosive')?1:3;
+          if(label.startsWith('Lower toward'))label='Lower — first half';
+          if(label.startsWith('Complete lower'))label='Lower — finish';
+        }
+        add(label,seconds,a.hold?`${a.hold}s ${e.reps_unit==='seconds'?'duration':'hold'}`:repsText(),e.branded_name,p.kind,p.side,p.rep,p.seconds===null);
+      }
+    }
+    if(e.rest_seconds>0)add('Rest after set',e.rest_seconds,'Rest',e.branded_name,'rest');
+    return result;
+  }
+  function logType(e){const a=annotation(e);return e.reps_unit==='seconds' || a.hold || a.block?'time':'reps';}
+  return {annotation,phases,guidedPhases,logType,create,load,start,pause,next,tick};
 })();

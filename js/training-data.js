@@ -15,11 +15,11 @@ window.Training = (() => {
     muscle: ['Assisted muscle-up components', 'Assisted full bar muscle-up', 'Strict bar muscle-up']
   };
   const prep = exercise('prep', 'Wrist, scapular & specific warm-up', 1, 1, 0,
-    ['Wrist rocks and palm lifts: 10 per direction; scapular push-ups and scapular pulls: 10 each.', 'Use the remaining time for easy assisted pulls, pike presses and modest planche leans.'],
-    {category:'Preparation', reps_unit:'7-minute preparation block', timing:{block:420}, source:'Adaptation · current app warm-up'});
-  const balance = exercise('balance','Handstand control practice',1,1,0,
+    ['Wrist rocks and palm peel aways from Mobility Toolkit; wrist openers, finger stretch and scapular push-ups from Home Hero.', 'Finish with easy assisted pulls, pike presses and modest planche leans from Petar’s upper-body sheets.'],
+    {category:'Preparation', reps_unit:'7-minute preparation block', timing:{block:420}, source:'Mobility Toolkit W1 Day 1; Home Hero p.6; Petar Cycles 1–2. Timing windows are app adaptations.'});
+  const balance = exercise('balance','Handstand control practice',5,1,30,
     ['Use short wall toe-pulls or supported balance attempts; come down before losing alignment.', 'Ribs down, pelvis tucked, glutes engaged; push tall through shoulders.', 'Rest between attempts within this practice window. A wall hold is not a wall push-up.'],
-    {category:'HSPU balance', reps_unit:'5-minute practice window', timing:{block:300}, source:'Adaptation · freestanding HSPU goal'});
+    {category:'HSPU balance', reps_unit:'hold',hold_seconds:30,timing:{hold:30},keep_sets:true,source:'Home Hero p.17 and p.28: 3–5 handstand sets, 30–60s. Five 30s attempts + 30s rests adapt this to the five-minute practice block.'});
   const high = exercise('high','Assisted explosive high pull',2,3,0,
     ['Use band or foot assistance to pull toward the lower chest.', 'Keep hollow body tension; stop when pull height or speed falls.'],
     {group:'muscle', goal:'muscle', timing:{phases:[['Explosive pull',null],['Controlled lower',null]]}, source:'Adaptation · current app muscle-up foundations'});
@@ -44,10 +44,10 @@ window.Training = (() => {
   const face = exercise('face','Controlled face pull',2,8,60,
     ['Keep the body still; pull toward eye level and rotate hands back.', 'Petar: slower tempo targets the rotators better than fast movement.'],
     {rep_max:10,timing:{phases:[['Pull',3],['Return',3]]},source:source2+' · e1; original 3×8–10, 1–2 min rest',video:'https://www.youtube.com/watch?v=5xC9DpNA2-4'});
-  const primary = {type:'calisthenics',name:'Big 4 · Primary weekly session',duration:'55–60',
+  const primary = {key:'skills_med_primary',type:'calisthenics',name:'Big 4 · Primary weekly session',duration:'55–60',
     description:'Complete weekly session. Leave 1–2 clean reps available; explosive quality comes first.',
     exercises:[prep,balance,high,transition,dip,oac,pike,planche,row,face]};
-  const secondary = {type:'calisthenics',name:'Big 4 · Optional technique session',duration:'20–25',
+  const secondary = {key:'skills_med_secondary',type:'calisthenics',name:'Big 4 · Optional technique session',duration:'20–25',
     description:'Easy practice only: leave at least 3 reps available. Skipping it never blocks progression.',
     exercises:[
       {...prep,id:'easy-prep',timing:{block:180},reps_unit:'3-minute easy preparation block'},
@@ -87,16 +87,31 @@ window.Training = (() => {
   }
   function queue(routine, savedLevels={}, lighter=false) {
     let exercises=routine.exercises.map((e,i)=>({...configure(e,savedLevels),id:e.id || 'mobility-'+i}));
-    if(routine===primary && savedLevels.muscle>0) exercises=exercises.filter(e=>!['transition','dip'].includes(e.id)).map(e=>e.id==='high'?{...e,rest_seconds:90}:e);
+    if(routine.key==='skills_med_primary' && savedLevels.muscle>0) exercises=exercises.filter(e=>!['transition','dip'].includes(e.id)).map(e=>e.id==='high'?{...e,rest_seconds:90}:e);
     const out=[];
-    if(routine===secondary)exercises=routine.exercises.map(e=>JSON.parse(JSON.stringify(e)));
+    if(routine.key==='skills_med_secondary')exercises=routine.exercises.map(e=>JSON.parse(JSON.stringify(e)));
     for(let i=0;i<exercises.length;) {
       const first=exercises[i], group=[first]; i++;
       if(first.group) while(i<exercises.length && exercises[i].group===first.group) group.push(exercises[i++]);
-      const count=e=>lighter && !e.timing?.block ? Math.max(1,e.sets-1):e.sets;
-      for(let s=1;s<=Math.max(...group.map(count));s++) for(const e of group) if(s<=count(e)) out.push({...e,currentSetNumber:s,totalSets:count(e)});
+      const count=e=>lighter && !e.timing?.block && !e.keep_sets ? Math.max(1,e.sets-1):e.sets;
+      for(let s=1;s<=Math.max(...group.map(count));s++) for(const e of group) if(s<=count(e)) {
+        const steps=preparation(e);
+        if(steps)for(const step of steps)out.push({...e,...step,parent_name:e.branded_name,id:e.id+'-'+step.slug,timing:{work:step.seconds},currentSetNumber:s,totalSets:count(e)});
+        else out.push({...e,currentSetNumber:s,totalSets:count(e)});
+      }
     }
     return out;
   }
-  return {levels,primary,secondary,queue};
+  function preparation(e) {
+    if(!['prep','easy-prep'].includes(e.id))return null;
+    const easy=e.id==='easy-prep';
+    const make=(slug,name,reps,seconds)=>({slug,branded_name:name,reps,reps_unit:'reps',seconds,rest_seconds:0});
+    const steps=['forward','backward','side'].map(d=>({...make('wrists-'+d,'Wrist rocks — '+d,10,easy?20:30),source:'Mobility Toolkit W1 Day 1b: 10 reps per direction. App warm-up timing window.'}));
+    steps.push({...make('palms','Palm Peel Aways',10,easy?20:40),source:'Mobility Toolkit W1 Day 1b: 10 reps. App warm-up timing window.'});
+    for(const [slug,name] of [['flexor','Wrist Flexor Opener'],['extensor','Wrist Extensor Opener'],['fingers','Finger Stretch']])steps.push({...make(slug,name,10,easy?20:30),source:'Home Hero p.6: 10 reps. App warm-up timing window.'});
+    steps.push({...make('scap-push','Scap Push-Up',10,40),source:'Home Hero p.6: 10 reps. App warm-up timing window.'});
+    if(!easy){steps.push(make('easy-pull','Easy assisted pulls',3,30),make('easy-pike','Easy pike presses',5,40),make('easy-planche','Modest planche lean push-ups',5,50));steps.at(-1).rest_seconds=40;}
+    return steps;
+  }
+  return {levels,primary,secondary,queue,preparation};
 })();
